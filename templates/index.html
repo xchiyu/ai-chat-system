@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能对话系统</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg-sidebar: #f8fafc;
+            --bg-main: #ffffff;
+            --border: #e2e8f0;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --sidebar-width: 280px;
+            --sidebar-collapsed: 48px;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f1f5f9; height: 100vh; overflow: hidden; }
+        
+        .layout { display: flex; height: 100%; }
+        
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .sidebar.collapsed { width: var(--sidebar-collapsed); }
+        
+        .sidebar-toggle {
+            position: absolute;
+            right: -12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 24px;
+            height: 48px;
+            background: var(--bg-main);
+            border: 1px solid var(--border);
+            border-radius: 0 4px 4px 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            z-index: 100;
+            transition: all 0.2s;
+        }
+        
+        .sidebar-toggle:hover { background: var(--border); color: var(--text-primary); }
+        
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .sidebar-header .logo {
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        
+        .sidebar-header h2 { font-size: 14px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .sidebar-section { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        
+        .section-header {
+            padding: 12px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .section-content { flex: 1; overflow-y: auto; }
+        
+        .search-box {
+            margin: 8px 12px;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            background: white;
+            color: var(--text-primary);
+            width: calc(100% - 24px);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        .search-box:focus { border-color: var(--primary); }
+        
+        .doc-list { padding: 4px 0; }
+        
+        .folder-group { margin: 4px 0; }
+        
+        .folder-header {
+            display: flex;
+            align-items: center;
+            padding: 6px 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            gap: 6px;
+        }
+        
+        .folder-header:hover { background: #e2e8f0; }
+        
+        .folder-header .expand-icon {
+            font-size: 10px;
+            color: var(--text-muted);
+            transition: transform 0.2s;
+            width: 16px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        
+        .folder-header.collapsed .expand-icon { transform: rotate(-90deg); }
+        
+        .folder-header .folder-icon { font-size: 14px; margin-right: 4px; }
+        
+        .folder-header .folder-name { font-size: 13px; color: var(--text-primary); font-weight: 500; }
+        
+        .folder-header .folder-count { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+        
+        .folder-content {
+            overflow: hidden;
+            max-height: 1000px;
+            transition: max-height 0.2s ease-out;
+        }
+        
+        .folder-content.collapsed { max-height: 0; }
+        
+        .doc-item {
+            display: flex;
+            align-items: center;
+            padding: 7px 12px 7px 36px;
+            margin: 1px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            gap: 10px;
+        }
+        
+        .doc-item:hover { background: #e2e8f0; }
+        
+        .doc-item .icon {
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+        
+        .doc-item .icon.txt { background: #dbeafe; color: #2563eb; }
+        .doc-item .icon.docx { background: #fef3c7; color: #d97706; }
+        
+        .doc-item .info { flex: 1; min-width: 0; }
+        .doc-item .name { font-size: 13px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .doc-item .type { font-size: 11px; color: var(--text-muted); }
+        .doc-item .delete-btn {
+            opacity: 0;
+            padding: 3px 6px;
+            font-size: 11px;
+            color: var(--danger);
+            border: 1px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .doc-item:hover .delete-btn { opacity: 1; }
+        .doc-item .delete-btn:hover { background: #fee2e2; border-color: #fecaca; }
+        
+        .upload-area {
+            margin: 8px 12px;
+            padding: 14px;
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .upload-area:hover { border-color: var(--primary); background: #eff6ff; }
+        .upload-area .icon { font-size: 22px; color: var(--text-muted); margin-bottom: 4px; }
+        .upload-area .text { font-size: 12px; color: var(--text-secondary); }
+        
+        #fileInput { display: none; }
+        
+        .chat-history { padding: 4px 8px; }
+        
+        .history-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 12px;
+            border-bottom: 1px solid var(--border);
+            margin: 0 4px;
+        }
+        
+        .history-toolbar .select-all {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+        
+        .history-toolbar .select-all input {
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+        }
+        
+        .history-toolbar .batch-delete {
+            padding: 4px 10px;
+            font-size: 12px;
+            color: var(--danger);
+            background: transparent;
+            border: 1px solid var(--danger);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: none;
+        }
+        
+        .history-toolbar .batch-delete:hover { background: #fee2e2; }
+        .history-toolbar .batch-delete:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .history-item {
+            padding: 10px 12px;
+            margin: 2px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .history-item:hover { background: #e2e8f0; }
+        .history-item.active { background: #dbeafe; border-left: 2px solid var(--primary); }
+        .history-item.active .title { color: var(--primary); font-weight: 500; }
+        .history-item.selected { background: #fef3c7; border-left: 2px solid #f59e0b; }
+        
+        .history-item .checkbox-wrapper {
+            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .history-item:hover .checkbox-wrapper,
+        .history-item.selected .checkbox-wrapper,
+        .sidebar.collapsed .history-item .checkbox-wrapper {
+            opacity: 1;
+        }
+        
+        .history-item .checkbox-wrapper input {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+        
+        .history-item .content { flex: 1; min-width: 0; }
+        .history-item .title { font-size: 13px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-item .meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        
+        .history-item .delete-btn {
+            opacity: 0;
+            padding: 4px 8px;
+            font-size: 11px;
+            color: var(--danger);
+            border: 1px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        
+        .history-item:hover .delete-btn { opacity: 1; }
+        .history-item .delete-btn:hover { background: #fee2e2; border-color: #fecaca; }
+        
+        .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        
+        .main-header {
+            padding: 16px 24px;
+            background: var(--bg-main);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .main-header h1 { font-size: 16px; color: var(--text-primary); }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-secondary { background: #f1f5f9; color: var(--text-secondary); }
+        .btn-secondary:hover { background: #e2e8f0; }
+        
+        .chat-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        
+        .chat-area {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .msg { display: flex; gap: 12px; }
+        
+        .msg-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+        
+        .msg-user .msg-avatar { background: var(--primary); color: white; }
+        .msg-ai .msg-avatar { background: var(--success); color: white; }
+        
+        .msg-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .msg-user .msg-content { background: var(--primary); color: white; border-bottom-right-radius: 2px; }
+        .msg-ai .msg-content { background: #f1f5f9; color: var(--text-primary); border-bottom-left-radius: 2px; }
+        
+        .typing-indicator {
+            display: flex;
+            gap: 12px;
+            animation: fadeIn 0.3s;
+        }
+        
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+            padding: 12px 16px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            border-bottom-left-radius: 2px;
+        }
+        
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .input-area {
+            padding: 16px 24px;
+            background: var(--bg-main);
+            border-top: 1px solid var(--border);
+        }
+        
+        .input-bar {
+            display: flex;
+            gap: 12px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .input-bar input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        .input-bar input:focus { border-color: var(--primary); }
+        
+        .status-bar {
+            padding: 8px 24px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 12px;
+            background: #f8fafc;
+        }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        
+        .modal-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .modal {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            min-width: 320px;
+            max-width: 90%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            transform: scale(0.95);
+            transition: transform 0.2s;
+        }
+        
+        .modal-overlay.show .modal {
+            transform: scale(1);
+        }
+        
+        .modal-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .modal-header .icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        
+        .modal-header .icon.warning { background: #fef3c7; color: #f59e0b; }
+        .modal-header .icon.success { background: #d1fae5; color: #10b981; }
+        .modal-header .icon.error { background: #fee2e2; color: #ef4444; }
+        
+        .modal-header h3 { font-size: 16px; color: var(--text-primary); }
+        
+        .modal-body {
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        
+        .modal-body .count { font-weight: 600; color: var(--danger); }
+        
+        .modal-body .undo-hint {
+            margin-top: 12px;
+            padding: 10px;
+            background: #f8fafc;
+            border-radius: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .modal-footer .btn { flex: 1; }
+        
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .toast {
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            animation: slideIn 0.3s;
+            max-width: 320px;
+        }
+        
+        .toast.success { background: #d1fae5; color: #059669; }
+        .toast.error { background: #fee2e2; color: #dc2626; }
+        .toast.info { background: #dbeafe; color: #1d4ed8; }
+        
+        .toast .icon { font-size: 16px; }
+        
+        .toast .undo-btn {
+            margin-left: auto;
+            padding: 4px 8px;
+            font-size: 12px;
+            background: rgba(255,255,255,0.8);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: inherit;
+            font-weight: 500;
+        }
+        
+        .toast .undo-btn:hover { background: white; }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        
+        .sidebar.collapsed .sidebar-header h2,
+        .sidebar.collapsed .section-header span,
+        .sidebar.collapsed .doc-item .info,
+        .sidebar.collapsed .doc-item .delete-btn,
+        .sidebar.collapsed .upload-area .text,
+        .sidebar.collapsed .search-box,
+        .sidebar.collapsed .history-item .content,
+        .sidebar.collapsed .history-item .delete-btn,
+        .sidebar.collapsed .history-item .checkbox-wrapper,
+        .sidebar.collapsed .folder-header .folder-name,
+        .sidebar.collapsed .folder-header .folder-count,
+        .sidebar.collapsed .history-toolbar {
+            display: none;
+        }
+        
+        .sidebar.collapsed .upload-area { padding: 10px; }
+        .sidebar.collapsed .upload-area .icon { margin-bottom: 0; }
+        
+        .sidebar.collapsed .folder-header { padding: 8px; }
+        .sidebar.collapsed .doc-item { padding: 6px 8px; }
+        
+        .sidebar.collapsed .history-item { padding: 8px; justify-content: center; }
+        
+        @media (max-width: 768px) {
+            .sidebar { position: absolute; left: 0; top: 0; bottom: 0; z-index: 1000; }
+            .sidebar.collapsed { left: -100%; }
+            .sidebar-toggle { display: none; }
+            .main-content { padding-left: 0; }
+            
+            .modal { min-width: 280px; padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-toggle" onclick="toggleSidebar()">
+                <span id="toggleIcon">›</span>
+            </div>
+            
+            <div class="sidebar-header">
+                <div class="logo">AI</div>
+                <h2>智能对话系统</h2>
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="section-header">
+                    <span>📚 文档管理</span>
+                </div>
+                
+                <div class="section-content">
+                    <input type="text" class="search-box" id="docSearch" placeholder="搜索文档..." oninput="filterDocuments()">
+                    
+                    <div class="upload-area" onclick="triggerFileSelect()">
+                        <div class="icon">📤</div>
+                        <div class="text">上传文档</div>
+                    </div>
+                    <input type="file" id="fileInput" accept=".txt,.docx" multiple onchange="onFileSelect(event)">
+                    
+                    <div class="doc-list" id="docList">加载中...</div>
+                </div>
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="section-header">
+                    <span>💬 历史对话</span>
+                </div>
+                
+                <div class="section-content">
+                    <div class="chat-history" id="chatHistory">
+                        <div class="history-item" onclick="newChat()">
+                            <div class="content">
+                                <div class="title">➕ 新建对话</div>
+                                <div class="meta">开始新的会话</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="main-header">
+                <h1 id="chatTitle">新对话</h1>
+                <button class="btn btn-primary" onclick="newChat()">新建对话</button>
+            </div>
+            
+            <div class="chat-container">
+                <div class="chat-area" id="chatArea">
+                    <div class="msg msg-ai">
+                        <div class="msg-avatar">AI</div>
+                        <div class="msg-content">你好！我是你的智能助手。</div>
+                    </div>
+                </div>
+                
+                <div id="typingIndicator" style="display: none;">
+                    <div class="typing-indicator">
+                        <div class="msg-avatar" style="background: var(--success); color: white;">AI</div>
+                        <div class="typing-dots">
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="input-area">
+                    <div class="input-bar">
+                        <input type="text" id="messageInput" placeholder="输入你的问题..." onkeydown="if(event.key=='Enter')sendMessage()">
+                        <button class="btn btn-primary" onclick="sendMessage()">发送</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="status-bar" id="statusBar">就绪</div>
+        </div>
+    </div>
+    
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="icon warning" id="modalIcon">⚠️</div>
+                <h3 id="modalTitle">确认删除</h3>
+            </div>
+            <div class="modal-body" id="modalBody">
+                确定要删除这条记录吗？此操作无法撤销。
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+                <button class="btn btn-danger" id="modalConfirmBtn" onclick="executeDelete()">确认删除</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <script>
+        const sidebar = document.getElementById('sidebar');
+        const toggleIcon = document.getElementById('toggleIcon');
+        const chatArea = document.getElementById('chatArea');
+        const messageInput = document.getElementById('messageInput');
+        const docList = document.getElementById('docList');
+        const docSearch = document.getElementById('docSearch');
+        const fileInput = document.getElementById('fileInput');
+        const chatHistory = document.getElementById('chatHistory');
+        
+        let currentDocuments = [];
+        let collapsedFolders = {};
+        let currentSessionId = null;
+        
+        function toggleSidebar() {
+            sidebar.classList.toggle('collapsed');
+            toggleIcon.textContent = sidebar.classList.contains('collapsed') ? '‹' : '›';
+        }
+        
+        function toggleFolder(folderId) {
+            const header = document.querySelector(`[data-folder="${folderId}"]`);
+            const content = document.querySelector(`[data-folder-content="${folderId}"]`);
+            
+            if (header && content) {
+                header.classList.toggle('collapsed');
+                content.classList.toggle('collapsed');
+                collapsedFolders[folderId] = header.classList.contains('collapsed');
+            }
+        }
+        
+        function triggerFileSelect() {
+            fileInput.click();
+        }
+        
+        function filterDocuments() {
+            const query = docSearch.value.toLowerCase();
+            const folders = docList.querySelectorAll('.folder-group');
+            
+            folders.forEach(folder => {
+                const docItems = folder.querySelectorAll('.doc-item');
+                let visibleCount = 0;
+                
+                docItems.forEach(item => {
+                    const name = item.querySelector('.name').textContent.toLowerCase();
+                    if (name.includes(query)) {
+                        item.style.display = 'flex';
+                        visibleCount++;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+                
+                const header = folder.querySelector('.folder-header');
+                const content = folder.querySelector('.folder-content');
+                
+                if (visibleCount > 0) {
+                    folder.style.display = 'block';
+                    header.classList.remove('collapsed');
+                    content.classList.remove('collapsed');
+                } else {
+                    folder.style.display = 'none';
+                }
+            });
+        }
+        
+        async function loadDocuments() {
+            try {
+                const res = await fetch('/document_list');
+                const data = await res.json();
+                currentDocuments = data.documents;
+                
+                if (currentDocuments.length === 0) {
+                    docList.innerHTML = '<div style="color:var(--text-muted); padding:16px; text-align:center;">暂无文档</div>';
+                    return;
+                }
+                
+                const folders = {
+                    'docx': { name: 'Word文档', icon: '📝', docs: [] },
+                    'txt': { name: '文本文件', icon: '📄', docs: [] },
+                    'other': { name: '其他文件', icon: '📁', docs: [] }
+                };
+                
+                currentDocuments.forEach(doc => {
+                    const ext = doc.name.split('.').pop().toLowerCase();
+                    if (folders[ext]) {
+                        folders[ext].docs.push(doc);
+                    } else {
+                        folders['other'].docs.push(doc);
+                    }
+                });
+                
+                let html = '';
+                Object.keys(folders).forEach(key => {
+                    if (folders[key].docs.length === 0) return;
+                    
+                    const isCollapsed = collapsedFolders[key] || false;
+                    html += `
+                        <div class="folder-group">
+                            <div class="folder-header ${isCollapsed ? 'collapsed' : ''}" data-folder="${key}" onclick="toggleFolder('${key}')">
+                                <span class="expand-icon">›</span>
+                                <span class="folder-icon">${folders[key].icon}</span>
+                                <span class="folder-name">${folders[key].name}</span>
+                                <span class="folder-count">${folders[key].docs.length}</span>
+                            </div>
+                            <div class="folder-content ${isCollapsed ? 'collapsed' : ''}" data-folder-content="${key}">
+                                ${folders[key].docs.map(doc => {
+                                    const nameWithoutExt = doc.name.replace(/\.[^/.]+$/, '');
+                                    const ext = doc.name.split('.').pop().toLowerCase();
+                                    return `
+                                        <div class="doc-item">
+                                            <div class="icon ${ext}">${ext === 'txt' ? '📄' : '📝'}</div>
+                                            <div class="info">
+                                                <div class="name">${nameWithoutExt}</div>
+                                                <div class="type">${doc.type}</div>
+                                            </div>
+                                            <button class="delete-btn" onclick="deleteDocument('${doc.name}')">删除</button>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                docList.innerHTML = html;
+            } catch (e) {
+                docList.innerHTML = '<div style="color:var(--danger); padding:16px;">加载失败</div>';
+            }
+        }
+        
+        async function onFileSelect(event) {
+            const files = event.target.files;
+            if (files.length === 0) return;
+            
+            document.getElementById('statusBar').textContent = `正在上传 ${files.length} 个文件...`;
+            
+            try {
+                for (let i = 0; i < files.length; i++) {
+                    const formData = new FormData();
+                    formData.append('file', files[i]);
+                    formData.append('rebuild', 'true');
+                    const res = await fetch('/upload_document', { method: 'POST', body: formData });
+                    if (!res.ok) throw new Error('上传失败');
+                }
+                
+                alert(`成功上传 ${files.length} 个文档`);
+                fileInput.value = '';
+                loadDocuments();
+                document.getElementById('statusBar').textContent = '就绪';
+            } catch (e) {
+                alert('上传失败: ' + e.message);
+                document.getElementById('statusBar').textContent = '上传失败';
+            }
+        }
+        
+        async function deleteDocument(name) {
+            if (!confirm(`确定删除 "${name}"？`)) return;
+            try {
+                const res = await fetch(`/delete_document/${name}`, { method: 'DELETE' });
+                if (res.ok) {
+                    loadDocuments();
+                }
+            } catch (e) {
+                alert('删除失败');
+            }
+        }
+        
+        async function loadSessions() {
+            try {
+                const res = await fetch('/sessions');
+                const data = await res.json();
+                
+                let html = '';
+                
+                if (data.sessions && data.sessions.length > 0) {
+                    data.sessions.forEach(session => {
+                        const isActive = session.id === currentSessionId;
+                        const timeStr = formatTime(session.updated_at);
+                        html += `
+                            <div class="history-item ${isActive ? 'active' : ''}" 
+                                 onclick="switchToSession('${session.id}')">
+                                <div class="content">
+                                    <div class="title">${escapeHtml(session.title)}</div>
+                                    <div class="meta">${timeStr} · ${session.message_count}条消息</div>
+                                </div>
+                                <button class="delete-btn" onclick="confirmDeleteSingle('${session.id}', '${escapeHtml(session.title)}', event)">
+                                    删除
+                                </button>
+                            </div>
+                        `;
+                    });
+                }
+                
+                chatHistory.innerHTML = `
+                    <div class="history-item" onclick="newChat()">
+                        <div class="content">
+                            <div class="title">➕ 新建对话</div>
+                            <div class="meta">开始新的会话</div>
+                        </div>
+                    </div>
+                    ${html}
+                `;
+            } catch (e) {
+                console.error('加载会话失败:', e);
+            }
+        }
+        
+        function formatTime(isoString) {
+            if (!isoString) return '';
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = now.getTime() - date.getTime();
+            
+            if (diff < 60000) return '刚刚';
+            if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
+            
+            return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function showModal(title, body, icon, confirmText, onConfirm) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').innerHTML = body;
+            document.getElementById('modalIcon').textContent = icon;
+            document.getElementById('modalConfirmBtn').textContent = confirmText;
+            pendingDeleteAction = onConfirm;
+            document.getElementById('confirmModal').classList.add('show');
+        }
+        
+        function closeModal() {
+            document.getElementById('confirmModal').classList.remove('show');
+            pendingDeleteAction = null;
+        }
+        
+        function executeDelete() {
+            if (pendingDeleteAction) {
+                pendingDeleteAction();
+            }
+            closeModal();
+        }
+        
+        function confirmDeleteSingle(sessionId, title, event) {
+            event.stopPropagation();
+            showModal(
+                '确认删除',
+                `<p>确定要删除对话 "<span class="count">${title}</span>" 吗？</p>`,
+                '⚠️',
+                '确认删除',
+                () => deleteSession(sessionId, title)
+            );
+        }
+        
+        function showToast(type, message) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+            
+            toast.innerHTML = `<span class="icon">${icons[type]}</span><span>${message}</span>`;
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'fadeOut 0.3s';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        
+        async function deleteSession(sessionId, title) {
+            try {
+                const res = await fetch(`/session/${sessionId}`, { method: 'DELETE' });
+                
+                if (res.ok) {
+                    if (currentSessionId === sessionId) {
+                        newChat();
+                    } else {
+                        loadSessions();
+                    }
+                    
+                    showToast('success', `已删除对话 "${title}"`);
+                } else {
+                    const data = await res.json();
+                    showToast('error', data.detail || '删除失败');
+                }
+            } catch (e) {
+                showToast('error', '删除失败: ' + e.message);
+            }
+        }
+        
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+            
+            messageInput.value = '';
+            addMessage('user', text);
+            document.getElementById('typingIndicator').style.display = 'block';
+            document.getElementById('statusBar').textContent = 'AI思考中...';
+            
+            try {
+                const res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: text,
+                        use_knowledge: true,
+                        use_memory: true
+                    })
+                });
+                
+                const data = await res.json();
+                currentSessionId = data.session_id;
+                document.getElementById('typingIndicator').style.display = 'none';
+                addMessage('ai', data.response);
+                document.getElementById('statusBar').textContent = `响应时间: ${data.response_time}秒`;
+                
+                loadSessions();
+            } catch (e) {
+                document.getElementById('typingIndicator').style.display = 'none';
+                addMessage('ai', '抱歉，发生错误: ' + e.message);
+                document.getElementById('statusBar').textContent = '发生错误';
+            }
+        }
+        
+        function addMessage(role, text) {
+            const msg = document.createElement('div');
+            msg.className = `msg msg-${role}`;
+            msg.innerHTML = `
+                <div class="msg-avatar">${role === 'user' ? '你' : 'AI'}</div>
+                <div class="msg-content">${escapeHtml(text)}</div>
+            `;
+            chatArea.appendChild(msg);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+        
+        async function newChat() {
+            try {
+                const res = await fetch('/new_session', { method: 'POST' });
+                const data = await res.json();
+                
+                currentSessionId = data.session_id;
+                chatArea.innerHTML = '<div class="msg msg-ai"><div class="msg-avatar">AI</div><div class="msg-content">你好！我是你的智能助手。</div></div>';
+                document.getElementById('chatTitle').textContent = '新对话';
+                document.getElementById('statusBar').textContent = '就绪';
+                loadSessions();
+            } catch (e) {
+                alert('创建新对话失败: ' + e.message);
+            }
+        }
+        
+        async function switchToSession(sessionId) {
+            try {
+                const res = await fetch(`/session/${sessionId}`);
+                const data = await res.json();
+                
+                await fetch(`/switch_session/${sessionId}`, { method: 'POST' });
+                
+                currentSessionId = sessionId;
+                chatArea.innerHTML = '';
+                
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(msg => {
+                        addMessage(msg.role === 'user' ? 'user' : 'ai', msg.content);
+                    });
+                } else {
+                    chatArea.innerHTML = '<div class="msg msg-ai"><div class="msg-avatar">AI</div><div class="msg-content">你好！我是你的智能助手。</div></div>';
+                }
+                
+                const sessionRes = await fetch('/sessions');
+                const sessionsData = await sessionRes.json();
+                const session = sessionsData.sessions.find(s => s.id === sessionId);
+                
+                if (session) {
+                    document.getElementById('chatTitle').textContent = session.title;
+                }
+                
+                document.getElementById('statusBar').textContent = '就绪';
+                loadSessions();
+            } catch (e) {
+                alert('切换会话失败: ' + e.message);
+            }
+        }
+        
+        loadDocuments();
+        loadSessions();
+    </script>
+</body>
+</html>
