@@ -6,29 +6,42 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from core.config import load_config
-from core.models import get_zhipu_llm, get_zhipu_embedding
-from core.knowledge import KnowledgeBase
-from core.memory import MemoryManager
-from core.prompt import PromptGenerator
-
-config = load_config()
-zhipu_llm = get_zhipu_llm(config)
-zhipu_embedding = get_zhipu_embedding(config)
-
-knowledge_base = KnowledgeBase(
-    vector_path=config['system']['storage_path'] + "/vector_store",
-    docs_path="./docs/",
-    embed_model=zhipu_embedding
-)
-
-memory_manager = MemoryManager(storage_path=config['system']['storage_path'] + "/memory")
-prompt_generator = PromptGenerator()
+zhipu_llm = None
+zhipu_embedding = None
+knowledge_base = None
+memory_manager = None
+prompt_generator = None
+config = None
 
 app = FastAPI(title="智能对话系统", description="集成智普大模型的对话系统")
 
 os.makedirs("./templates", exist_ok=True)
 os.makedirs("./static", exist_ok=True)
+
+
+def init_app():
+    global zhipu_llm, zhipu_embedding, knowledge_base, memory_manager, prompt_generator, config
+    if zhipu_llm is not None:
+        return
+    
+    from core.config import load_config
+    from core.models import get_zhipu_llm, get_zhipu_embedding
+    from core.knowledge import KnowledgeBase
+    from core.memory import MemoryManager
+    from core.prompt import PromptGenerator
+    
+    config = load_config()
+    zhipu_llm = get_zhipu_llm(config)
+    zhipu_embedding = get_zhipu_embedding(config)
+    
+    knowledge_base = KnowledgeBase(
+        vector_path=config['system']['storage_path'] + "/vector_store",
+        docs_path="./docs/",
+        embed_model=zhipu_embedding
+    )
+    
+    memory_manager = MemoryManager(storage_path=config['system']['storage_path'] + "/memory")
+    prompt_generator = PromptGenerator()
 
 
 class ChatRequest(BaseModel):
@@ -43,6 +56,7 @@ class ResetRequest(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
+    init_app()
     with open("./templates/index.html", "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
@@ -54,6 +68,7 @@ async def health():
 
 @app.post("/chat")
 async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
+    init_app()
     try:
         start_time = time.time()
         
@@ -107,6 +122,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
 
 @app.post("/new_session")
 async def new_session():
+    init_app()
     try:
         session_id = memory_manager.create_session()
         return {"status": "success", "session_id": session_id, "title": "新对话"}
@@ -116,6 +132,7 @@ async def new_session():
 
 @app.get("/sessions")
 async def get_sessions():
+    init_app()
     try:
         sessions = memory_manager.get_sessions_list()
         return {"sessions": sessions}
@@ -125,6 +142,7 @@ async def get_sessions():
 
 @app.get("/session/{session_id}")
 async def get_session(session_id: str):
+    init_app()
     try:
         messages = memory_manager.get_session_messages(session_id)
         if messages is None:
@@ -138,6 +156,7 @@ async def get_session(session_id: str):
 
 @app.post("/switch_session/{session_id}")
 async def switch_session(session_id: str):
+    init_app()
     try:
         session = memory_manager.switch_session(session_id)
         if session is None:
@@ -151,6 +170,7 @@ async def switch_session(session_id: str):
 
 @app.delete("/session/{session_id}")
 async def delete_session(session_id: str):
+    init_app()
     try:
         success = memory_manager.delete_session(session_id)
         if not success:
@@ -164,6 +184,7 @@ async def delete_session(session_id: str):
 
 @app.post("/restore_session")
 async def restore_session(request: Dict[str, Any]):
+    init_app()
     try:
         session_data = request.get('data')
         if not session_data or 'id' not in session_data:
@@ -184,6 +205,7 @@ async def restore_session(request: Dict[str, Any]):
 
 @app.post("/restore_sessions")
 async def restore_sessions(request: Dict[str, Any]):
+    init_app()
     try:
         sessions_data = request.get('sessions', [])
         if not sessions_data:
@@ -210,6 +232,7 @@ async def restore_sessions(request: Dict[str, Any]):
 
 @app.post("/reset_memory")
 async def reset_memory(request: ResetRequest):
+    init_app()
     try:
         if request.mode not in ["all", "recent"]:
             raise HTTPException(status_code=400, detail="无效的重置模式，支持 'all' 和 'recent'")
@@ -223,11 +246,13 @@ async def reset_memory(request: ResetRequest):
 
 @app.get("/memory_stats")
 async def memory_stats():
+    init_app()
     return memory_manager.get_memory_stats()
 
 
 @app.get("/rebuild_index")
 async def rebuild_index():
+    init_app()
     try:
         knowledge_base.rebuild_index()
         return {"status": "success", "message": "向量库已重建"}
@@ -237,6 +262,7 @@ async def rebuild_index():
 
 @app.post("/upload_document")
 async def upload_document(file: UploadFile = File(...), rebuild: bool = True):
+    init_app()
     try:
         filename = file.filename
         if not filename:
@@ -268,6 +294,7 @@ async def upload_document(file: UploadFile = File(...), rebuild: bool = True):
 
 @app.get("/document_list")
 async def document_list():
+    init_app()
     try:
         docs = []
         for filename in os.listdir("./docs/"):
@@ -287,6 +314,7 @@ async def document_list():
 
 @app.delete("/delete_document/{filename}")
 async def delete_document(filename: str):
+    init_app()
     try:
         file_path = os.path.join("./docs/", filename)
         if not os.path.exists(file_path):
